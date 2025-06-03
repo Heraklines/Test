@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0a0a">
+    <title>D&D AI Dungeon Master</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
+        :root {
+            --primary: #8b4513;
+            --gold: #d4af37;
+            --dark: #0a0a0a;
+            --light: #f4e4c1;
+            --accent: #2e7d32;
+            --danger: #c62828;
+            --parchment: rgba(244, 228, 193, 0.95);
+            --shadow: 0 8px 32px rgba(0,0,0,0.8);
+            --glow: 0 0 20px rgba(212, 175, 55, 0.5);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: 'EB Garamond', serif;
+            background: #0a0a0a;
+            color: var(--light);
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(139, 69, 19, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(212, 175, 55, 0.2) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(46, 125, 50, 0.2) 0%, transparent 50%),
+                linear-gradient(135deg, #0a0a0a 0%, #1a0f1a 100%);
+            z-index: -1;
+        }
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="1" fill="%23d4af37" opacity="0.3"><animate attributeName="opacity" values="0.3;0.8;0.3" dur="3s" repeatCount="indefinite"/></circle></svg>');
+            animation: stars 120s linear infinite;
+        }
+        @keyframes stars {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        /* Main Story Container */
+        .story-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        /* Ambient Status Bar */
+        .ambient-status {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            z-index: 100;
+        }
+        .health-indicator { display: flex; align-items: center; gap: 0.5rem; }
+        .health-bar { width: 80px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; position: relative; }
+        .health-fill { height: 100%; background: linear-gradient(90deg, #c62828 0%, #ef5350 100%); transition: width 0.6s ease; box-shadow: 0 0 10px rgba(198, 40, 40, 0.8); }
+        .location-tag { font-family: 'Cinzel', serif; font-size: 0.8rem; color: var(--gold); text-shadow: 0 0 10px rgba(212, 175, 55, 0.5); }
+        /* Story Display */
+        .story-display { flex: 1; overflow-y: auto; padding: 4rem 1rem 1rem; scroll-behavior: smooth; }
+        .story-display::-webkit-scrollbar { width: 6px; }
+        .story-display::-webkit-scrollbar-track { background: transparent; }
+        .story-display::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.3); border-radius: 3px; }
+        /* Story Messages */
+        .story-message { max-width: 800px; margin: 0 auto 2rem; animation: storyFade 0.8s ease; }
+        @keyframes storyFade { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .story-message.narration { font-size: 1.1rem; line-height: 1.8; color: var(--light); text-align: justify; padding: 1.5rem 2rem; background: linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(44,24,16,0.4) 100%); border-radius: 8px; border-left: 3px solid var(--gold); position: relative; }
+        .story-message.narration::before { content: '📜'; position: absolute; top: -10px; left: -10px; font-size: 1.5rem; filter: sepia(1) saturate(2); }
+        .story-message.action { font-style: italic; color: rgba(244, 228, 193, 0.9); text-align: center; margin: 1rem auto; padding: 0.8rem; max-width: 600px; }
+        .story-message.dialogue { background: rgba(139, 69, 19, 0.2); border-radius: 8px; padding: 1rem 1.5rem; margin-left: 2rem; margin-right: 2rem; position: relative; border: 1px solid rgba(212, 175, 55, 0.3); }
+        .story-message.dialogue::before { content: '"'; position: absolute; top: -20px; left: 10px; font-size: 3rem; color: var(--gold); opacity: 0.3; }
+        .story-message.combat { background: linear-gradient(135deg, rgba(198, 40, 40, 0.2) 0%, rgba(139, 0, 0, 0.1) 100%); border: 1px solid rgba(198, 40, 40, 0.5); border-radius: 8px; padding: 1rem; text-align: center; font-weight: 600; animation: combatPulse 1s ease; }
+        @keyframes combatPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+        .story-message.system { background: rgba(46, 125, 50, 0.2); border: 1px solid rgba(46, 125, 50, 0.5); border-radius: 8px; padding: 0.8rem; text-align: center; font-size: 0.9rem; color: rgba(244, 228, 193, 0.8); }
+        /* Action Input */
+        .action-input-container { padding: 1rem; background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.9) 30%); }
+        .action-input-wrapper { max-width: 800px; margin: 0 auto; display: flex; gap: 0.5rem; align-items: center; }
+        .action-input { flex: 1; padding: 1rem 1.5rem; background: rgba(44, 24, 16, 0.8); border: 1px solid rgba(212, 175, 55, 0.5); color: var(--light); border-radius: 25px; font-family: 'EB Garamond', serif; font-size: 1.1rem; transition: all 0.3s ease; }
+        .action-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 20px rgba(212, 175, 55, 0.3); background: rgba(44, 24, 16, 0.95); }
+        .action-input::placeholder { color: rgba(244, 228, 193, 0.5); font-style: italic; }
+        /* Floating Action Button */
+        .fab-container { position: fixed; bottom: 120px; right: 20px; z-index: 200; }
+        .fab { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--primary) 0%, var(--gold) 100%); border: 2px solid var(--gold); color: var(--light); font-size: 1.5rem; cursor: pointer; box-shadow: var(--shadow); transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; position: relative; }
+        .fab:hover { transform: scale(1.1) rotate(180deg); box-shadow: var(--glow), var(--shadow); }
+        .fab-menu { position: absolute; bottom: 70px; right: 0; display: none; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
+        .fab-menu.active { display: flex; }
+        .fab-item { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.3s ease; }
+        .fab-item:hover { transform: translateX(-5px); }
+        .fab-label { background: rgba(0, 0, 0, 0.9); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem; white-space: nowrap; box-shadow: var(--shadow); }
+        .fab-icon { width: 45px; height: 45px; border-radius: 50%; background: rgba(44, 24, 16, 0.95); border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        /* Slide Panels */
+        .slide-panel { position: fixed; top: 0; height: 100vh; width: 85%; max-width: 400px; background: var(--parchment); color: var(--dark); box-shadow: var(--shadow); transition: transform 0.3s ease; z-index: 300; overflow-y: auto; transform: translateX(-100%); }
+        .slide-panel.right { right: 0; left: auto; transform: translateX(100%); }
+        .slide-panel.active { transform: translateX(0); }
+        .panel-header { background: linear-gradient(135deg, var(--primary) 0%, rgba(139, 69, 19, 0.8) 100%); color: var(--light); padding: 1rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .panel-title { font-family: 'Cinzel', serif; font-size: 1.3rem; color: var(--gold); text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+        .panel-close { background: transparent; border: none; color: var(--gold); font-size: 1.5rem; cursor: pointer; padding: 0.5rem; transition: transform 0.3s ease; }
+        .panel-close:hover { transform: rotate(90deg); }
+        .panel-content { padding: 1.5rem; }
+        .character-portrait { width: 120px; height: 120px; margin: 0 auto 1rem; border-radius: 50%; background: linear-gradient(135deg, var(--primary) 0%, var(--gold) 100%); display: flex; align-items: center; justify-content: center; font-size: 4rem; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        .character-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; margin-bottom: 1.5rem; }
+        .stat-card { background: rgba(255, 255, 255, 0.8); border: 1px solid var(--primary); border-radius: 8px; padding: 0.8rem; text-align: center; transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .stat-name { font-family: 'Cinzel', serif; font-size: 0.8rem; color: var(--primary); font-weight: 600; }
+        .stat-value { font-size: 1.5rem; font-weight: bold; color: var(--dark); }
+        /* Inventory Panel */
+        .inventory-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .filter-btn { padding: 0.4rem 0.8rem; background: rgba(139, 69, 19, 0.2); border: 1px solid var(--primary); border-radius: 20px; font-size: 0.8rem; cursor: pointer; transition: all 0.3s ease; }
+        .filter-btn.active { background: var(--primary); color: var(--light); }
+        .inventory-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .inventory-item { background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(139, 69, 19, 0.3); border-radius: 8px; padding: 1rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; transition: all 0.3s ease; }
+        .inventory-item:hover { background: rgba(255, 255, 255, 0.8); transform: translateX(5px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .item-icon-large { font-size: 2rem; min-width: 50px; text-align: center; }
+        .item-details { flex: 1; }
+        .item-name { font-weight: 600; color: var(--dark); }
+        .item-type { font-size: 0.8rem; color: rgba(0,0,0,0.6); font-style: italic; }
+        .item-quantity { background: var(--primary); color: var(--light); padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+        /* Map Overlay */
+        .map-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); width: 90%; max-width: 600px; height: 70vh; max-height: 600px; background: rgba(0, 0, 0, 0.95); border: 3px solid var(--gold); border-radius: 12px; box-shadow: var(--shadow), var(--glow); display: none; opacity: 0; transition: all 0.3s ease; z-index: 400; }
+        .map-overlay.active { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        .map-header { background: linear-gradient(90deg, var(--primary) 0%, var(--gold) 100%); padding: 0.8rem; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; }
+        .map-canvas { height: calc(100% - 50px); position: relative; background: radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.8) 100%), repeating-linear-gradient(0deg, rgba(212,175,55,0.1) 0px, transparent 1px, transparent 30px, rgba(212,175,55,0.1) 31px), repeating-linear-gradient(90deg, rgba(212,175,55,0.1) 0px, transparent 1px, transparent 30px, rgba(212,175,55,0.1) 31px); overflow: hidden; }
+        .map-token { position: absolute; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.8); animation: tokenBounce 2s ease-in-out infinite; }
+        @keyframes tokenBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .map-token:hover { transform: scale(1.2); z-index: 10; }
+        .map-token.player { background: radial-gradient(circle, var(--accent) 0%, #1b5e20 100%); border: 2px solid var(--gold); }
+        .map-token.enemy { background: radial-gradient(circle, var(--danger) 0%, #8b0000 100%); border: 2px solid #ff6b6b; }
+        .map-token.npc { background: radial-gradient(circle, var(--primary) 0%, #5d4037 100%); border: 2px solid var(--gold); }
+        /* Overlay Background */
+        .overlay-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: none; z-index: 250; backdrop-filter: blur(4px); }
+        .overlay-bg.active { display: block; }
+        /* Quick Actions */
+        .quick-actions { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 0.5rem; background: rgba(0, 0, 0, 0.8); padding: 0.5rem 1rem; border-radius: 25px; border: 1px solid rgba(212, 175, 55, 0.3); opacity: 0; transition: all 0.3s ease; z-index: 150; }
+        .quick-actions.visible { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+        .quick-action-btn { padding: 0.4rem 0.8rem; background: rgba(44, 24, 16, 0.8); border: 1px solid rgba(212, 175, 55, 0.5); color: var(--light); border-radius: 15px; font-size: 0.9rem; cursor: pointer; transition: all 0.2s ease; }
+        .quick-action-btn:hover { background: rgba(212, 175, 55, 0.2); transform: translateY(-2px); }
+        /* Loading Animation */
+        .loading-message { display: flex; align-items: center; gap: 1rem; padding: 1rem; color: var(--gold); font-style: italic; }
+        .loading-dots { display: flex; gap: 0.3rem; }
+        .loading-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); animation: loadingBounce 1.4s ease-in-out infinite; }
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes loadingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-10px); opacity: 1; } }
+        /* Settings Gear */
+        .settings-btn { position: fixed; top: 10px; right: 10px; width: 40px; height: 40px; background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; z-index: 150; }
+        .settings-btn:hover { transform: rotate(90deg); border-color: var(--gold); box-shadow: 0 0 15px rgba(212, 175, 55, 0.5); }
+        /* Settings Modal */
+        .settings-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 500px; background: var(--parchment); color: var(--dark); border-radius: 12px; box-shadow: var(--shadow); display: none; z-index: 500; max-height: 80vh; overflow-y: auto; }
+        .settings-modal.active { display: block; }
+        .settings-header { background: linear-gradient(135deg, var(--primary) 0%, var(--gold) 100%); padding: 1rem; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        .settings-content { padding: 1.5rem; }
+        .setting-group { margin-bottom: 1.5rem; }
+        .setting-label { font-family: 'Cinzel', serif; font-weight: 600; color: var(--primary); margin-bottom: 0.5rem; display: block; }
+        .setting-input { width: 100%; padding: 0.8rem; background: rgba(255, 255, 255, 0.8); border: 1px solid var(--primary); border-radius: 8px; font-family: 'EB Garamond', serif; font-size: 1rem; }
+        /* Responsive */
+        @media (max-width: 768px) { .slide-panel { width: 90%; } .map-overlay { width: 95%; height: 60vh; } .quick-actions { bottom: 70px; padding: 0.4rem 0.6rem; } .quick-action-btn { font-size: 0.8rem; padding: 0.3rem 0.6rem; } }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        .damage-number { position: fixed; color: #ff6b6b; font-size: 2rem; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); pointer-events: none; z-index: 1000; animation: damageFloat 1.5s ease-out forwards; }
+        @keyframes damageFloat { 0% { transform: translateY(0) scale(0.5); opacity: 1; } 100% { transform: translateY(-100px) scale(1); opacity: 0; } }
+        .heal-number { color: #4caf50; }
+        .achievement-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: linear-gradient(135deg, var(--primary) 0%, var(--gold) 100%); padding: 1rem 2rem; border-radius: 8px; box-shadow: var(--shadow), var(--glow); display: flex; align-items: center; gap: 1rem; z-index: 1000; animation: achievementSlide 4s ease forwards; }
+        @keyframes achievementSlide { 0% { transform: translateX(-50%) translateY(-100px); } 20% { transform: translateX(-50%) translateY(0); } 80% { transform: translateX(-50%) translateY(0); } 100% { transform: translateX(-50%) translateY(-100px); } }
+        .achievement-icon { font-size: 2rem; }
+        .achievement-text { font-family: 'Cinzel', serif; font-weight: 600; color: var(--light); text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="story-container">
+        <div class="ambient-status">
+            <div class="health-indicator">
+                <span>❤️</span>
+                <div class="health-bar">
+                    <div class="health-fill" id="health-fill" style="width: 100%"></div>
+                </div>
+            </div>
+            <div class="location-tag" id="location-tag">The Yawning Portal</div>
+            <button class="settings-btn" onclick="openSettings()">⚙️</button>
+        </div>
+        <div class="story-display" id="story-display">
+            <div class="story-message narration">
+                <p>The tavern door creaks open as you step inside, immediately hit by the warmth of the crackling fireplace and the mingled scents of ale, roasted meat, and pipe smoke. The Yawning Portal is bustling with adventurers, merchants, and locals, all sharing tales of glory and danger.</p>
+                <p>A grizzled dwarf behind the bar catches your eye and nods. This is where your adventure begins...</p>
+            </div>
+        </div>
+        <div class="action-input-container">
+            <div class="action-input-wrapper">
+                <input type="text" class="action-input" id="action-input" placeholder="What do you do?" autocomplete="off">
+            </div>
+        </div>
+    </div>
+    <div class="quick-actions" id="quick-actions">
+        <button class="quick-action-btn" onclick="quickAction('look around')">Look Around</button>
+        <button class="quick-action-btn" onclick="quickAction('talk')">Talk</button>
+        <button class="quick-action-btn" onclick="quickAction('investigate')">Investigate</button>
+        <button class="quick-action-btn" onclick="quickAction('rest')">Rest</button>
+    </div>
+    <div class="fab-container">
+        <div class="fab-menu" id="fab-menu">
+            <div class="fab-item" onclick="openPanel('character')">
+                <span class="fab-label">Character</span>
+                <div class="fab-icon">👤</div>
+            </div>
+            <div class="fab-item" onclick="openPanel('inventory')">
+                <span class="fab-label">Inventory</span>
+                <div class="fab-icon">🎒</div>
+            </div>
+            <div class="fab-item" onclick="openMapOverlay()">
+                <span class="fab-label">Map</span>
+                <div class="fab-icon">🗺️</div>
+            </div>
+            <div class="fab-item" onclick="openPanel('journal')">
+                <span class="fab-label">Journal</span>
+                <div class="fab-icon">📖</div>
+            </div>
+        </div>
+        <button class="fab" id="fab" onclick="toggleFabMenu()">✨</button>
+    </div>
+    <div class="slide-panel" id="character-panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Character</h2>
+            <button class="panel-close" onclick="closePanel('character')">×</button>
+        </div>
+        <div class="panel-content">
+            <div class="character-portrait">🦸</div>
+            <h3 style="text-align: center; font-family: 'Cinzel', serif; margin-bottom: 1rem;" id="character-name">Adventurer</h3>
+            <div class="character-stats">
+                <div class="stat-card"><div class="stat-name">Level</div><div class="stat-value" id="level">1</div></div>
+                <div class="stat-card"><div class="stat-name">Class</div><div class="stat-value" id="class">Fighter</div></div>
+                <div class="stat-card"><div class="stat-name">HP</div><div class="stat-value" id="hp">10/10</div></div>
+                <div class="stat-card"><div class="stat-name">AC</div><div class="stat-value" id="ac">10</div></div>
+            </div>
+            <div class="character-stats">
+                <div class="stat-card"><div class="stat-name">STR</div><div class="stat-value" id="str">10</div></div>
+                <div class="stat-card"><div class="stat-name">DEX</div><div class="stat-value" id="dex">10</div></div>
+                <div class="stat-card"><div class="stat-name">CON</div><div class="stat-value" id="con">10</div></div>
+                <div class="stat-card"><div class="stat-name">INT</div><div class="stat-value" id="int">10</div></div>
+                <div class="stat-card"><div class="stat-name">WIS</div><div class="stat-value" id="wis">10</div></div>
+                <div class="stat-card"><div class="stat-name">CHA</div><div class="stat-value" id="cha">10</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="slide-panel right" id="inventory-panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Inventory</h2>
+            <button class="panel-close" onclick="closePanel('inventory')">×</button>
+        </div>
+        <div class="panel-content">
+            <div class="inventory-filters">
+                <button class="filter-btn active" onclick="filterInventory('all')">All</button>
+                <button class="filter-btn" onclick="filterInventory('weapon')">Weapons</button>
+                <button class="filter-btn" onclick="filterInventory('armor')">Armor</button>
+                <button class="filter-btn" onclick="filterInventory('potion')">Potions</button>
+                <button class="filter-btn" onclick="filterInventory('misc')">Misc</button>
+            </div>
+            <div class="inventory-list" id="inventory-list"></div>
+        </div>
+    </div>
+    <div class="slide-panel" id="journal-panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Journal</h2>
+            <button class="panel-close" onclick="closePanel('journal')">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="journal-entries">
+                <h3 style="font-family: 'Cinzel', serif; color: var(--primary); margin-bottom: 0.5rem;">Quest Log</h3>
+                <div style="margin-bottom: 1rem; padding: 1rem; background: rgba(139, 69, 19, 0.1); border-radius: 8px;">
+                    <p><strong>Main Quest:</strong> Discover your destiny</p>
+                    <p style="font-size: 0.9rem; color: rgba(0,0,0,0.7); margin-top: 0.5rem;">You've arrived at the Yawning Portal. Your adventure begins here...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="map-overlay" id="map-overlay">
+        <div class="map-header"><h3 class="panel-title">Map</h3><button class="panel-close" onclick="closeMapOverlay()">×</button></div>
+        <div class="map-canvas" id="map-canvas"></div>
+    </div>
+    <div class="settings-modal" id="settings-modal">
+        <div class="settings-header"><h2 class="panel-title">Settings</h2><button class="panel-close" onclick="closeSettings()">×</button></div>
+        <div class="settings-content">
+            <div class="setting-group"><label class="setting-label">Gemini API Key</label><input type="password" class="setting-input" id="api-key" value="AIzaSyANC0VzE3X9O_F2uZuSPn3uaNWW3CGnprc"><small style="color: rgba(0,0,0,0.6); font-size: 0.8rem; display: block; margin-top: 0.5rem;">Your API key is stored locally</small></div>
+            <div class="setting-group"><label class="setting-label">Adventure Module</label><select class="setting-input" id="adventure-module"><option value="wild-sheep-chase">The Wild Sheep Chase</option><option value="skyhorn-lighthouse">Secrets of Skyhorn Lighthouse</option><option value="grammys-pie">Grammy's Country Apple Pie</option><option value="custom">Custom Adventure</option></select></div>
+            <div class="setting-group"><label class="setting-label">Character Name</label><input type="text" class="setting-input" id="character-name-input" placeholder="Enter your character's name"></div>
+        </div>
+    </div>
+    <div class="overlay-bg" id="overlay-bg" onclick="closeAllPanels()"></div>
+    <script>
+        let gameState = { character: { name: "Adventurer", class: "Fighter", level: 1, hp: { current: 10, max: 10 }, ac: 10, stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, inventory: [ { name: "Longsword", type: "weapon", icon: "⚔️", quantity: 1 }, { name: "Leather Armor", type: "armor", icon: "🛡️", quantity: 1 }, { name: "Healing Potion", type: "potion", icon: "🧪", quantity: 2 }, { name: "Torch", type: "misc", icon: "🔦", quantity: 5 }, { name: "Gold Pieces", type: "misc", icon: "🪙", quantity: 50 } ], conditions: [], experience: 0 }, world: { location: "The Yawning Portal", time: "evening", weather: "clear", atmosphere: "bustling" }, combat: { active: false, round: 0, combatants: [] }, map: { currentRoom: "tavern", explored: ["tavern"], tokens: [] }, journal: { entries: [], quests: [] }, flags: { tutorial: true, resting: false }, conversation: [] };
+        const adventureModules = { 'wild-sheep-chase': { name: "The Wild Sheep Chase", description: "A light-hearted adventure full of polymorphed sheep and wizard grudges", startingLocation: "Market Square", initialPrompt: "You're browsing the market stalls when suddenly a sheep runs up to you, bleating frantically. It seems to be trying to communicate something..." }, 'skyhorn-lighthouse': { name: "Secrets of Skyhorn Lighthouse", description: "A water-themed adventure with pirates and underwater mysteries", startingLocation: "Coastal Town Docks", initialPrompt: "The salty sea air fills your lungs as you arrive at the docks. The lighthouse keeper has been missing for days, and strange lights have been seen..." }, 'grammys-pie': { name: "Grammy's Country Apple Pie", description: "A comedic adventure where cosmic forces battle over the perfect pie", startingLocation: "The Countryside", initialPrompt: "The wizard Tyndareus has hired you for what seems like a simple task - retrieve his favorite apple pie from Grammy's Bakery. What could go wrong?" } };
+        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+        const DM_SYSTEM_PROMPT = `You are an immersive AI Dungeon Master for D&D 5th Edition. Your role is to create a cinematic, engaging experience where the player focuses purely on roleplay and storytelling.\nCRITICAL RULES:\n1. NEVER mention game mechanics to the player (no dice rolls, AC, DC, stats, etc.)\n2. Handle ALL mechanical calculations silently using the provided functions\n3. Present outcomes as natural narrative consequences\n4. Focus on immersive storytelling and vivid descriptions\nYour responsibilities:\n- Narrate with rich, sensory details\n- Control all NPCs with distinct personalities\n- Secretly roll all dice and determine outcomes\n- Track all game mechanics behind the scenes\n- Create dramatic, cinematic moments\n- Respond creatively to player actions\n- Maintain tension and pacing\nWhen combat occurs:\n- Describe attacks and defenses cinematically\n- Use the dice roll functions but don't mention them\n- Update HP silently and describe injuries narratively\n- Make combat feel dangerous and exciting\nAlways:\n- Ask "What do you do?" to prompt player action\n- Give players meaningful choices\n- React to player creativity positively\n- Use the functions to track everything\n- Keep the story moving forward\nCurrent Setting: [Will be provided based on chosen adventure]\nRemember: The player should feel like they're in an interactive movie, not playing a game with numbers.`;
+        const dmFunctions = [ { name: "roll_dice", description: "Secretly roll dice for any check, save, or attack. Player should never know about these rolls.", parameters: { type: "object", properties: { num_dice: { type: "integer", description: "Number of dice" }, dice_type: { type: "integer", enum: [4, 6, 8, 10, 12, 20, 100] }, modifier: { type: "integer", description: "Modifier to add" }, dc: { type: "integer", description: "Difficulty Class if applicable" }, roll_type: { type: "string", enum: ["attack", "damage", "save", "check", "initiative"], description: "Type of roll being made" }, hidden: { type: "boolean", description: "Always true - rolls are always hidden from player" } }, required: ["num_dice", "dice_type", "roll_type", "hidden"] } }, { name: "update_character_hp", description: "Silently update character HP. Describe injuries/healing narratively without numbers.", parameters: { type: "object", properties: { target: { type: "string", description: "Character name or 'player'" }, hp_change: { type: "integer", description: "Negative for damage, positive for healing" }, damage_type: { type: "string", description: "Type of damage/healing" }, current_hp: { type: "integer", description: "Current HP after change" }, max_hp: { type: "integer", description: "Maximum HP" } }, required: ["target", "hp_change", "current_hp", "max_hp"] } }, { name: "manage_inventory", description: "Add or remove items from inventory silently", parameters: { type: "object", properties: { action: { type: "string", enum: ["add", "remove", "use"] }, item_name: { type: "string" }, quantity: { type: "integer" }, item_type: { type: "string", enum: ["weapon", "armor", "potion", "treasure", "misc"] }, effect: { type: "string", description: "Effect if item is used" } }, required: ["action", "item_name", "quantity"] } }, { name: "update_world_state", description: "Update location, time, atmosphere, or other world elements", parameters: { type: "object", properties: { location: { type: "string", description: "New location name" }, time: { type: "string", description: "Time of day" }, weather: { type: "string", description: "Weather conditions" }, atmosphere: { type: "string", description: "Mood/atmosphere of the scene" } } } }, { name: "manage_combat", description: "Handle combat state and tracking", parameters: { type: "object", properties: { action: { type: "string", enum: ["start", "end", "add_combatant", "remove_combatant", "next_turn"] }, combatants: { type: "array", items: { type: "object", properties: { name: { type: "string" }, hp: { type: "integer" }, ac: { type: "integer" }, initiative: { type: "integer" } } } } }, required: ["action"] } }, { name: "update_map", description: "Update map tokens and positions", parameters: { type: "object", properties: { action: { type: "string", enum: ["add_token", "move_token", "remove_token", "reveal_area"] }, token_id: { type: "string" }, token_type: { type: "string", enum: ["player", "enemy", "npc", "object"] }, x: { type: "integer" }, y: { type: "integer" }, area: { type: "string", description: "Area to reveal on map" } }, required: ["action"] } }, { name: "add_journal_entry", description: "Add important events or discoveries to the player's journal", parameters: { type: "object", properties: { entry_type: { type: "string", enum: ["quest", "discovery", "npc", "location", "lore"] }, title: { type: "string" }, content: { type: "string" }, important: { type: "boolean" } }, required: ["entry_type", "title", "content"] } }, { name: "grant_experience", description: "Award XP for accomplishments, silently track progression", parameters: { type: "object", properties: { amount: { type: "integer", description: "XP amount" }, reason: { type: "string", description: "What earned the XP" }, level_up: { type: "boolean", description: "If this causes a level up" } }, required: ["amount", "reason"] } }, { name: "apply_condition", description: "Apply or remove conditions (poisoned, frightened, etc)", parameters: { type: "object", properties: { action: { type: "string", enum: ["add", "remove"] }, condition: { type: "string" }, duration: { type: "string", description: "How long it lasts" }, effect: { type: "string", description: "Narrative effect" } }, required: ["action", "condition"] } } ];
+        document.addEventListener('DOMContentLoaded', () => { initializeGame(); });
+        function initializeGame() { setupEventListeners(); loadGameState(); updateCharacterDisplay(); updateInventoryDisplay(); document.getElementById('action-input').focus(); startAmbientEffects(); }
+        function setupEventListeners() { const actionInput = document.getElementById('action-input'); actionInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { handlePlayerAction(); } }); actionInput.addEventListener('focus', () => { document.getElementById('quick-actions').classList.add('visible'); }); actionInput.addEventListener('blur', () => { setTimeout(() => { document.getElementById('quick-actions').classList.remove('visible'); }, 200); }); window.addEventListener('click', (e) => { if (e.target.id === 'overlay-bg') { closeAllPanels(); } }); }
+        async function handlePlayerAction() { const input = document.getElementById('action-input'); const action = input.value.trim(); if (!action) return; addStoryMessage(action, 'action'); input.value = ''; showLoadingMessage(); try { const response = await callGeminiAPI(action); processAIResponse(response); } catch (error) { hideLoadingMessage(); addStoryMessage("The mystical connection wavers... (Check your API key in settings)", 'system'); console.error('API Error:', error); } }
+        async function callGeminiAPI(playerAction) { const apiKey = document.getElementById('api-key').value; const messages = [ { role: "user", parts: [{ text: DM_SYSTEM_PROMPT + `\n\nCurrent game state:\n${JSON.stringify(gameState, null, 2)}` }] }, ...gameState.conversation.slice(-10).map(msg => ({ role: msg.role === 'player' ? 'user' : 'model', parts: [{ text: msg.content }] })), { role: "user", parts: [{ text: `Player action: ${playerAction}` }] } ]; const requestBody = { contents: messages, tools: [{ function_declarations: dmFunctions }], generationConfig: { temperature: 0.9, topK: 40, topP: 0.95, maxOutputTokens: 2048 } }; const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) }); if (!response.ok) { throw new Error(`API request failed: ${response.status}`); } return await response.json(); }
+        async function processAIResponse(response) { hideLoadingMessage(); if (!response.candidates || response.candidates.length === 0) { addStoryMessage("The fates remain silent...", 'system'); return; } const candidate = response.candidates[0]; const content = candidate.content; if (content.parts) { for (const part of content.parts) { if (part.functionCall) { await executeFunctionCall(part.functionCall); } else if (part.text) { addStoryMessage(part.text, 'narration'); gameState.conversation.push({ role: 'dm', content: part.text }); } } } saveGameState(); }
+        async function executeFunctionCall(functionCall) { const { name, args } = functionCall; switch (name) { case 'roll_dice': return rollDiceSilently(args); case 'update_character_hp': updateCharacterHP(args); break; case 'manage_inventory': manageInventory(args); break; case 'update_world_state': updateWorldState(args); break; case 'manage_combat': manageCombat(args); break; case 'update_map': updateMap(args); break; case 'add_journal_entry': addJournalEntry(args); break; case 'grant_experience': grantExperience(args); break; case 'apply_condition': applyCondition(args); break; } }
+        function rollDiceSilently({ num_dice, dice_type, modifier = 0, dc = null }) { let total = 0; const rolls = []; for (let i = 0; i < num_dice; i++) { const roll = Math.floor(Math.random() * dice_type) + 1; rolls.push(roll); total += roll; } total += modifier; return { total, rolls, success: dc ? total >= dc : null }; }
+        function updateCharacterHP({ target, hp_change, current_hp, max_hp }) { if (target === 'player' || target === gameState.character.name) { const oldHp = gameState.character.hp.current; gameState.character.hp.current = current_hp; gameState.character.hp.max = max_hp; const healthFill = document.getElementById('health-fill'); const percentage = (current_hp / max_hp) * 100; healthFill.style.width = `${percentage}%`; if (hp_change !== 0) { showFloatingNumber(hp_change); } updateCharacterDisplay(); if (current_hp <= 0 && oldHp > 0) { addStoryMessage("Darkness closes in...", 'combat'); } } }
+        function manageInventory({ action, item_name, quantity, item_type, effect }) { if (action === 'add') { const existing = gameState.character.inventory.find(i => i.name === item_name); if (existing) { existing.quantity += quantity; } else { gameState.character.inventory.push({ name: item_name, type: item_type || 'misc', icon: getItemIcon(item_type), quantity: quantity }); } } else if (action === 'remove' || action === 'use') { const itemIndex = gameState.character.inventory.findIndex(i => i.name === item_name); if (itemIndex !== -1) { gameState.character.inventory[itemIndex].quantity -= quantity; if (gameState.character.inventory[itemIndex].quantity <= 0) { gameState.character.inventory.splice(itemIndex, 1); } } } updateInventoryDisplay(); }
+        function updateWorldState({ location, time, weather, atmosphere }) { if (location) { gameState.world.location = location; document.getElementById('location-tag').textContent = location; } if (time) gameState.world.time = time; if (weather) gameState.world.weather = weather; if (atmosphere) gameState.world.atmosphere = atmosphere; }
+        function manageCombat({ action, combatants }) { if (action === 'start') { gameState.combat.active = true; gameState.combat.combatants = combatants || []; document.body.style.animation = 'combatShake 0.5s'; } else if (action === 'end') { gameState.combat.active = false; gameState.combat.combatants = []; document.body.style.animation = ''; } }
+        function updateMap({ action, token_id, token_type, x, y, area }) { const mapCanvas = document.getElementById('map-canvas'); if (action === 'add_token') { const token = document.createElement('div'); token.className = `map-token ${token_type}`; token.id = token_id; token.style.left = `${x * 40}px`; token.style.top = `${y * 40}px`; token.innerHTML = getTokenIcon(token_type); mapCanvas.appendChild(token); gameState.map.tokens.push({ id: token_id, type: token_type, x, y }); } else if (action === 'move_token') { const token = document.getElementById(token_id); if (token) { token.style.left = `${x * 40}px`; token.style.top = `${y * 40}px`; } } }
+        function addJournalEntry({ entry_type, title, content, important }) { const entry = { type: entry_type, title: title, content: content, timestamp: new Date().toISOString(), important: important }; gameState.journal.entries.push(entry); if (important) { showAchievement('📜', `Discovery: ${title}`); } }
+        function grantExperience({ amount, reason, level_up }) { gameState.character.experience += amount; if (level_up) { gameState.character.level += 1; showAchievement('⭐', `Level ${gameState.character.level}!`); updateCharacterDisplay(); } }
+        function applyCondition({ action, condition, duration, effect }) { if (action === 'add') { gameState.character.conditions.push({ name: condition, duration: duration, effect: effect }); } else if (action === 'remove') { gameState.character.conditions = gameState.character.conditions.filter(c => c.name !== condition); } }
+        function addStoryMessage(content, type) { const storyDisplay = document.getElementById('story-display'); const message = document.createElement('div'); message.className = `story-message ${type}`; if (type === 'action') { message.innerHTML = `<p>» <em>${content}</em></p>`; } else if (type === 'dialogue') { message.innerHTML = `<p>${content}</p>`; } else { message.innerHTML = `<p>${content}</p>`; } storyDisplay.appendChild(message); message.scrollIntoView({ behavior: 'smooth', block: 'end' }); }
+        function showLoadingMessage() { const storyDisplay = document.getElementById('story-display'); const loading = document.createElement('div'); loading.id = 'loading-message'; loading.className = 'loading-message'; loading.innerHTML = `<span>The Dungeon Master contemplates</span><div class="loading-dots"><div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div></div>`; storyDisplay.appendChild(loading); loading.scrollIntoView({ behavior: 'smooth' }); }
+        function hideLoadingMessage() { const loading = document.getElementById('loading-message'); if (loading) loading.remove(); }
+        function showFloatingNumber(amount) { const number = document.createElement('div'); number.className = amount > 0 ? 'damage-number heal-number' : 'damage-number'; number.textContent = amount > 0 ? `+${amount}` : amount; number.style.left = '50%'; number.style.top = '30%'; document.body.appendChild(number); setTimeout(() => number.remove(), 1500); }
+        function showAchievement(icon, text) { const toast = document.createElement('div'); toast.className = 'achievement-toast'; toast.innerHTML = `<div class="achievement-icon">${icon}</div><div class="achievement-text">${text}</div>`; document.body.appendChild(toast); setTimeout(() => toast.remove(), 4000); }
+        function toggleFabMenu() { const menu = document.getElementById('fab-menu'); const fab = document.getElementById('fab'); menu.classList.toggle('active'); fab.style.transform = menu.classList.contains('active') ? 'rotate(180deg)' : ''; }
+        function openPanel(panelName) { const panel = document.getElementById(`${panelName}-panel`); const overlay = document.getElementById('overlay-bg'); panel.classList.add('active'); overlay.classList.add('active'); toggleFabMenu(); }
+        function closePanel(panelName) { const panel = document.getElementById(`${panelName}-panel`); panel.classList.remove('active'); const openPanels = document.querySelectorAll('.slide-panel.active, .map-overlay.active'); if (openPanels.length === 0) { document.getElementById('overlay-bg').classList.remove('active'); } }
+        function closeAllPanels() { document.querySelectorAll('.slide-panel').forEach(panel => { panel.classList.remove('active'); }); document.getElementById('map-overlay').classList.remove('active'); document.getElementById('overlay-bg').classList.remove('active'); }
+        function openMapOverlay() { const overlay = document.getElementById('map-overlay'); const bg = document.getElementById('overlay-bg'); overlay.classList.add('active'); bg.classList.add('active'); toggleFabMenu(); if (gameState.map.tokens.length === 0) { updateMap({ action: 'add_token', token_id: 'player-token', token_type: 'player', x: 5, y: 5 }); } }
+        function closeMapOverlay() { document.getElementById('map-overlay').classList.remove('active'); const openPanels = document.querySelectorAll('.slide-panel.active'); if (openPanels.length === 0) { document.getElementById('overlay-bg').classList.remove('active'); } }
+        function openSettings() { document.getElementById('settings-modal').classList.add('active'); document.getElementById('overlay-bg').classList.add('active'); }
+        function closeSettings() { document.getElementById('settings-modal').classList.remove('active'); const characterName = document.getElementById('character-name-input').value; if (characterName) { gameState.character.name = characterName; updateCharacterDisplay(); } const openPanels = document.querySelectorAll('.slide-panel.active'); if (openPanels.length === 0) { document.getElementById('overlay-bg').classList.remove('active'); } saveGameState(); }
+        function quickAction(action) { document.getElementById('action-input').value = action; handlePlayerAction(); }
+        function updateCharacterDisplay() { document.getElementById('character-name').textContent = gameState.character.name; document.getElementById('level').textContent = gameState.character.level; document.getElementById('class').textContent = gameState.character.class; document.getElementById('hp').textContent = `${gameState.character.hp.current}/${gameState.character.hp.max}`; document.getElementById('ac').textContent = gameState.character.ac; Object.keys(gameState.character.stats).forEach(stat => { const element = document.getElementById(stat); if (element) element.textContent = gameState.character.stats[stat]; }); }
+        function updateInventoryDisplay() { const inventoryList = document.getElementById('inventory-list'); inventoryList.innerHTML = ''; gameState.character.inventory.forEach(item => { const itemDiv = document.createElement('div'); itemDiv.className = 'inventory-item'; itemDiv.innerHTML = `<div class="item-icon-large">${item.icon}</div><div class="item-details"><div class="item-name">${item.name}</div><div class="item-type">${item.type}</div></div>${item.quantity > 1 ? `<div class="item-quantity">×${item.quantity}</div>` : ''}`; itemDiv.onclick = () => { closePanel('inventory'); document.getElementById('action-input').value = `I use my ${item.name}`; handlePlayerAction(); }; inventoryList.appendChild(itemDiv); }); }
+        function filterInventory(type) { document.querySelectorAll('.filter-btn').forEach(btn => { btn.classList.remove('active'); }); event.target.classList.add('active'); updateInventoryDisplay(); }
+        function getItemIcon(type) { const icons = { weapon: '⚔️', armor: '🛡️', potion: '🧪', treasure: '💎', misc: '📜' }; return icons[type] || '📦'; }
+        function getTokenIcon(type) { const icons = { player: '🦸', enemy: '👹', npc: '🧙', object: '📍' }; return icons[type] || '❓'; }
+        function saveGameState() { localStorage.setItem('dnd-immersive-state', JSON.stringify(gameState)); localStorage.setItem('dnd-api-key', document.getElementById('api-key').value); }
+        function loadGameState() { const saved = localStorage.getItem('dnd-immersive-state'); if (saved) { gameState = JSON.parse(saved); updateCharacterDisplay(); updateInventoryDisplay(); document.getElementById('location-tag').textContent = gameState.world.location; const percentage = (gameState.character.hp.current / gameState.character.hp.max) * 100; document.getElementById('health-fill').style.width = `${percentage}%`; } const savedKey = localStorage.getItem('dnd-api-key'); if (savedKey) { document.getElementById('api-key').value = savedKey; } }
+        function startAmbientEffects() { setInterval(() => { if (Math.random() < 0.1 && !gameState.combat.active) { } }, 30000); }
+        setInterval(saveGameState, 60000);
+        const style = document.createElement('style'); style.textContent = `@keyframes combatShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }`; document.head.appendChild(style);
+    </script>
+</body>
+</html>
