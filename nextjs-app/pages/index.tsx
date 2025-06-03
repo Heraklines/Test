@@ -1,12 +1,10 @@
-import React from 'react';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 
-const Home: React.FC = () => {
-  return (
-    <div>
-      <h1>Welcome to our Next.js App!</h1>
-      <p>This is a modern web application built using the Next.js framework.</p>
-    </div>
-  );
-};
-
-export default Home;
+export default function Home() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/dnd.html');
+  }, [router]);
+  return null;
+}
