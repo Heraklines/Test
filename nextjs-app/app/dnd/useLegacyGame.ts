@@ -12,7 +12,7 @@ export function useLegacyGame() {
         function initializeGame() { setupEventListeners(); loadGameState(); updateCharacterDisplay(); updateInventoryDisplay(); document.getElementById('action-input').focus(); startAmbientEffects(); }
         function setupEventListeners() { const actionInput = document.getElementById('action-input'); actionInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { handlePlayerAction(); } }); actionInput.addEventListener('focus', () => { document.getElementById('quick-actions').classList.add('visible'); }); actionInput.addEventListener('blur', () => { setTimeout(() => { document.getElementById('quick-actions').classList.remove('visible'); }, 200); }); window.addEventListener('click', (e) => { if (e.target.id === 'overlay-bg') { closeAllPanels(); } }); }
         async function handlePlayerAction() { const input = document.getElementById('action-input'); const action = input.value.trim(); if (!action) return; addStoryMessage(action, 'action'); input.value = ''; showLoadingMessage(); try { const response = await callGeminiAPI(action); processAIResponse(response); } catch (error) { hideLoadingMessage(); addStoryMessage("The mystical connection wavers... (Check your API key in settings)", 'system'); console.error('API Error:', error); } }
-        async function callGeminiAPI(playerAction) { const apiKey = document.getElementById('api-key').value; const messages = [ { role: "user", parts: [{ text: DM_SYSTEM_PROMPT + `\n\nCurrent game state:\n${JSON.stringify(gameState, null, 2)}` }] }, ...gameState.conversation.slice(-10).map(msg => ({ role: msg.role === 'player' ? 'user' : 'model', parts: [{ text: msg.content }] })), { role: "user", parts: [{ text: `Player action: ${playerAction}` }] } ]; const requestBody = { contents: messages, tools: [{ function_declarations: dmFunctions }], generationConfig: { temperature: 0.9, topK: 40, topP: 0.95, maxOutputTokens: 2048 } }; const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) }); if (!response.ok) { throw new Error(`API request failed: ${response.status}`); } return await response.json(); }
+        async function callGeminiAPI(playerAction) { const messages = [ { role: "user", parts: [{ text: DM_SYSTEM_PROMPT + `\n\nCurrent game state:\n${JSON.stringify(gameState, null, 2)}` }] }, ...gameState.conversation.slice(-10).map(msg => ({ role: msg.role === 'player' ? 'user' : 'model', parts: [{ text: msg.content }] })), { role: "user", parts: [{ text: `Player action: ${playerAction}` }] } ]; const requestBody = { contents: messages, tools: [{ function_declarations: dmFunctions }], generationConfig: { temperature: 0.9, topK: 40, topP: 0.95, maxOutputTokens: 2048 } }; const response = await fetch('/api/gemini', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) }); if (!response.ok) { throw new Error(`API request failed: ${response.status}`); } return await response.json(); }
         async function processAIResponse(response) { hideLoadingMessage(); if (!response.candidates || response.candidates.length === 0) { addStoryMessage("The fates remain silent...", 'system'); return; } const candidate = response.candidates[0]; const content = candidate.content; if (content.parts) { for (const part of content.parts) { if (part.functionCall) { await executeFunctionCall(part.functionCall); } else if (part.text) { addStoryMessage(part.text, 'narration'); gameState.conversation.push({ role: 'dm', content: part.text }); } } } saveGameState(); }
         async function executeFunctionCall(functionCall) { const { name, args } = functionCall; switch (name) { case 'roll_dice': return rollDiceSilently(args); case 'update_character_hp': updateCharacterHP(args); break; case 'manage_inventory': manageInventory(args); break; case 'update_world_state': updateWorldState(args); break; case 'manage_combat': manageCombat(args); break; case 'update_map': updateMap(args); break; case 'add_journal_entry': addJournalEntry(args); break; case 'grant_experience': grantExperience(args); break; case 'apply_condition': applyCondition(args); break; } }
         function rollDiceSilently({ num_dice, dice_type, modifier = 0, dc = null }) { let total = 0; const rolls = []; for (let i = 0; i < num_dice; i++) { const roll = Math.floor(Math.random() * dice_type) + 1; rolls.push(roll); total += roll; } total += modifier; return { total, rolls, success: dc ? total >= dc : null }; }
@@ -49,6 +49,18 @@ export function useLegacyGame() {
         setInterval(saveGameState, 60000);
         const style = document.createElement('style'); style.textContent = `@keyframes combatShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }`; document.head.appendChild(style);
   }, [])
+
+  return {
+    openSettings,
+    quickAction,
+    openPanel,
+    toggleFabMenu,
+    openMapOverlay,
+    closePanel,
+    closeMapOverlay,
+    filterInventory,
+    closeSettings,
+  }
 }
 
 

@@ -1,9 +1,9 @@
 'use client'
 import React from 'react'
 import { useLegacyGame } from './useLegacyGame'
-import { markup } from './markup'
+import Markup from './Markup'
 
 export default function DndPage() {
-  useLegacyGame()
-  return <div dangerouslySetInnerHTML={{ __html: markup }} />
+  const handlers = useLegacyGame()
+  return <Markup {...handlers} />
 }
