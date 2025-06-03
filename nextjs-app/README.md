@@ -1,41 +1,24 @@
-# Next.js App
+# D&D AI Dungeon Master Web App
 
-This is a modern web application built using the Next.js framework.
+This project is a prototype single-page application that turns your device into a fantasy adventure platform. The interface communicates with Google's Gemini API to act as an AI-powered Dungeon Master.
 
-## Tech Stack
+## Development
 
-- Next.js: A framework for server-side rendering and routing.
-- TypeScript: A superset of JavaScript that adds static types.
+This repository uses a minimal Next.js setup only to serve the static `dnd.html` page located in `public/`.
 
-## Features
-
-- Server-side rendering for improved performance.
-
-## Getting Started
-
-First, run the development server:
+Install dependencies and run the dev server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000/dnd.html](http://localhost:3000/dnd.html) to play.
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+## Deployment
 
-## Learn More
+Since the app is completely client-side, you can host the contents of `public/` on any static host. For quick testing you may simply open `dnd.html` in a browser.
 
-To learn more about Next.js, take a look at the following resources:
+## Warning
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+The sample file includes the provided Gemini API key in plain text for testing only. Replace it with your own key or load it from a secure source for production use.
